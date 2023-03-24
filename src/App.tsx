@@ -6,10 +6,10 @@ import {Club, generateRoundRobin, TeamTypes} from "./models/Club";
 function App() {
   const [count, setCount] = useState(0)
   const testClubs = [
-    new Club({name: "Banan", teamTypes: [TeamTypes.Womens, TeamTypes.Mens, TeamTypes.Mixed]}),
-    new Club({name: "Melon", teamTypes: [TeamTypes.Womens, TeamTypes.Mens] }),
-    new Club({name: "Kiwi", teamTypes: [TeamTypes.Womens,  TeamTypes.Mixed]}),
-    new Club({name: "Citron", teamTypes: [TeamTypes.Womens, TeamTypes.Mens, TeamTypes.Mixed]}),
+    new Club({name: "Banan", teamTypes: [TeamTypes.Women, TeamTypes.Men, TeamTypes.Mixed]}),
+    new Club({name: "Melon", teamTypes: [TeamTypes.Women, TeamTypes.Men] }),
+    new Club({name: "Kiwi", teamTypes: [TeamTypes.Women,  TeamTypes.Mixed]}),
+    new Club({name: "Citron", teamTypes: [TeamTypes.Women, TeamTypes.Men, TeamTypes.Mixed]}),
   ]
   return (
     <div className="App">
@@ -23,7 +23,7 @@ function App() {
       </div>
       <h1>Vite + React</h1>
       <div className="card">
-        <button onClick={() => generateRoundRobin(testClubs, 2)}>
+        <button onClick={() => generateRoundRobin(testClubs, 3)}>
           Click me
         </button>
         <p>

@@ -1,6 +1,6 @@
 export enum TeamTypes {
-  Womens,
-  Mens,
+  Women,
+  Men,
   Mixed
 }
 
@@ -30,11 +30,17 @@ export function generateRoundRobin(clubs: Club[], numberOfCourts: number) {
   //let clubsInMemory = clubs;
 
 
-  let previousMatchesInMemory: Match[][] = [[]];
+  let previousMatchesInMemory: Match[][] = [];
   let allSameTypeClubsHasPlayed = false;
   while (!allSameTypeClubsHasPlayed) {
     // TODO this seems to make duplicate rounds
-    const { round } = assignOrganisationTeamsToMatches(clubs, numberOfCourts, previousMatchesInMemory);
+    const shuffledClubs = clubs.sort(() => Math.random() - 0.5);
+    const { round } = assignOrganisationTeamsToMatches(shuffledClubs, numberOfCourts, previousMatchesInMemory);
+
+    if (round[0].length === 0) {
+      console.log("ERROR no matches found");
+      // break;
+    }
 
     previousMatchesInMemory = [...previousMatchesInMemory, ...round];
 
@@ -57,12 +63,61 @@ export function generateRoundRobin(clubs: Club[], numberOfCourts: number) {
     console.log("allSameTypeClubsHasPlayed", { allSameTypeClubsHasPlayed, prettyPrintPreviousMatches, previousMatchesInMemory, simultaneousMatches: round })
   }
 }
+
+function filterOutMatchesBasedOnTeamTypeAndOrganisation(
+  attendee: MatchAttendee,
+  matchAttendees: MatchAttendee[],
+): MatchAttendee[] {
+  // todo this doesnt take the current round in to consideration
+  var updatedMatchAttendees = [];
+  switch (attendee.teamType) {
+    case TeamTypes.Men:
+      updatedMatchAttendees = matchAttendees.filter(matchAttendee => {
+        const isMensOrWomen = matchAttendee.teamType === TeamTypes.Men || matchAttendee.teamType === TeamTypes.Women;
+        const isDifferentOrganisation = matchAttendee.organisation !== attendee.organisation;
+        return isMensOrWomen || isDifferentOrganisation;
+      })
+      break;
+    case TeamTypes.Women:
+      updatedMatchAttendees = matchAttendees.filter(matchAttendee => {
+        const isMensOrWomen = matchAttendee.teamType === TeamTypes.Men || matchAttendee.teamType === TeamTypes.Women;
+        const isDifferentOrganisation = matchAttendee.organisation !== attendee.organisation;
+        return isMensOrWomen || isDifferentOrganisation;
+      })
+      break;
+    case TeamTypes.Mixed:
+      updatedMatchAttendees = matchAttendees.filter(matchAttendee => {
+        const isMixed = matchAttendee.teamType === TeamTypes.Mixed;
+        const isDifferentOrganisation = matchAttendee.organisation !== attendee.organisation;
+        return isMixed || isDifferentOrganisation;
+      });
+  }
+  updatedMatchAttendees = updatedMatchAttendees.filter(matchAttendee => {
+    return matchAttendee.organisation !== attendee.organisation || matchAttendee.teamType !== attendee.teamType;
+  });
+  return updatedMatchAttendees;
+}
+
+function findMaybeAttendee(previousMatches: Match[][], partialMatch: [(MatchAttendee | null), (MatchAttendee | null)]) {
+  return (matchAttendee: MatchAttendee) => {
+    const hasNotPlayedBefore = previousMatches.every(matches => {
+      return matches.every(match => {
+        return (match[0]?.organisation !== matchAttendee.organisation || match[1]?.organisation !== partialMatch[0]?.organisation) &&
+          (match[0]?.organisation !== partialMatch[0]?.organisation || match[1]?.organisation !== matchAttendee.organisation);
+      });
+    });
+    const isSameTeamType = matchAttendee.teamType === partialMatch[0]?.teamType;
+    const isDifferentOrganisation = matchAttendee.organisation !== partialMatch[0]?.organisation;
+    return isSameTeamType && isDifferentOrganisation && hasNotPlayedBefore;
+  };
+}
+
 function assignOrganisationTeamsToMatches(
   clubs: Club[],
   numberOfCourts: number,
   previousMatches: Match[][]
 ) {
-  const matchAttendees = clubs.reduce((acc, club) => {
+  let matchAttendees = clubs.reduce((acc, club) => {
     club.teamTypes.forEach(teamType => {
       acc.push({
         organisation: club.name,
@@ -72,61 +127,48 @@ function assignOrganisationTeamsToMatches(
     return acc;
   }, [] as MatchAttendee[]);
 
-  let round: Match[][] = new Array(numberOfCourts).fill([]);
+  let rounds: Match[][] = [[]];
 
   let partialMatch: [MatchAttendee | null, MatchAttendee | null] = [null, null];
 
   while (matchAttendees.length !== 0) {
     let matchAttendee = matchAttendees[0];
     if (partialMatch[0] === null) {
-      // TODO Mixed can't play in the same round as Womens or Mens team from same organisation
-
-      console.log("first match",JSON.stringify({
-        matchAttendee: `${matchAttendee.organisation} ${matchAttendee.teamType}`,
-        matchAttendeesLength: matchAttendees.length
-      }, null, 2))
       partialMatch[0] = matchAttendee;
       continue;
     }
-    const maybeAttendeeIndex = matchAttendees.findIndex((matchAttendee) => {
-      const hasPlayedBefore = previousMatches.some(matches => {
-        return matches.some(match => {
-          return (match[0].organisation === matchAttendee.organisation && match[1].organisation === partialMatch[0]?.organisation) ||
-            (match[0].organisation === partialMatch[0]?.organisation && match[1].organisation === matchAttendee.organisation);
-        });
-      });
-      console.log(JSON.stringify({
-        matchAttendee: `${matchAttendee.organisation} ${matchAttendee.teamType}`,
-        toMatch: `${partialMatch[0]?.organisation} ${partialMatch[0]?.teamType}`,
-        hasPlayedBefore
-      }, null, 2))
-      // TODO Mixed can't play in the same round as Womens or Mens team from same organisation
-      return matchAttendee.organisation !== partialMatch[0]?.organisation && matchAttendee.teamType === partialMatch[0]?.teamType && !hasPlayedBefore;
-    });
+    const maybeAttendeeIndex = matchAttendees.findIndex(findMaybeAttendee(previousMatches, partialMatch));
 
     const maybeAttendee = matchAttendees[maybeAttendeeIndex];
-    console.log("second match",JSON.stringify({
-      matchAttendee: `${maybeAttendee?.organisation} ${maybeAttendee?.teamType}`,
-      toMatch: `${partialMatch[0]?.organisation} ${partialMatch[0]?.teamType}`,
-      matchAttendees
-    }, null, 2))
     if (!maybeAttendee) {
       console.log("ERROR no attendee found");
-      matchAttendees.splice(0, matchAttendees.length); // HACK to break out of loop
+      matchAttendees.splice(0, 1); // used to wipe the list of attendees to get out of the loop, testing this to see if I can get better matches
+      continue;
     }
     partialMatch[1] = maybeAttendee;
-    matchAttendees.splice(maybeAttendeeIndex, 1);
-    matchAttendees.splice(0, 1);
-    for (let j = 0; j < round.length; j++) {
-      const matches = round[j];
-      if (matches.length <= numberOfCourts) {
+
+    matchAttendees = filterOutMatchesBasedOnTeamTypeAndOrganisation(matchAttendee, matchAttendees);
+    matchAttendees = filterOutMatchesBasedOnTeamTypeAndOrganisation(maybeAttendee, matchAttendees);
+
+    // add the match to the rounds array each round is an array of matches, only allow numberOfCourts matches per round
+    if (rounds.length === 0) rounds.push([]);
+    if (rounds[rounds.length - 1].length === numberOfCourts) rounds.push([]);
+    rounds[rounds.length - 1].push(partialMatch as Match);
+    partialMatch = [null, null];
+
+
+    /*for (let j = 0; j < rounds.length; j++) {
+      const matches = rounds[j];
+      if (matches.length === numberOfCourts) {
         matches.push(partialMatch as Match);
         partialMatch = [null, null];
         break;
+      } else {
+        rounds.push([]);
       }
-    }
+    }*/
   }
 
-  console.log("test", {round, matchAttendees})
-  return { round };
+  console.log("test", {round: rounds, matchAttendees})
+  return { round: rounds };
 }
